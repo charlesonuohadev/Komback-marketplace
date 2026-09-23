@@ -1,0 +1,640 @@
+// Komback marketplace — Prisma schema (PostgreSQL)
+// Money is stored as whole Naira (Int) because the marketplace operates in NGN only.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum Role {
+  BUYER
+  SELLER
+  ADMIN
+}
+
+enum ProductStatus {
+  DRAFT
+  ACTIVE
+  SOLD
+  ARCHIVED
+}
+
+enum OrderStatus {
+  PENDING
+  ESCROW_SECURED
+  DISPATCHED
+  OUT_FOR_DELIVERY
+  DELIVERED
+  RELEASED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  UNPAID
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum TransactionType {
+  ESCROW_SECURED
+  ESCROW_RELEASE
+  BANK_PAYOUT
+  LISTING_FEE
+  BOOST_FEE
+  REFUND
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+enum PayoutStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  REJECTED
+}
+
+enum ShipmentStatus {
+  PENDING
+  DISPATCHED
+  IN_TRANSIT
+  OUT_FOR_DELIVERY
+  DELIVERED
+  FAILED
+}
+
+enum SenderRole {
+  BUYER
+  SELLER
+  SUPPORT
+}
+
+enum AuditCategory {
+  AUTH
+  USER
+  STORE
+  ORDER
+  PRODUCT
+  CONTENT
+  FINANCE
+  MESSAGE
+  SYSTEM
+}
+
+// ---------------------------------------------------------------------------
+// Identity
+// ---------------------------------------------------------------------------
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  passwordHash  String
+  name          String
+  phone         String?
+  role          Role      @default(BUYER)
+  avatar        String?
+  location      String?
+  state         String?
+  isActive      Boolean   @default(true)
+  emailVerified Boolean   @default(false)
+  lastLoginAt   DateTime?
+  lastSeenAt    DateTime?
+  loginCount    Int       @default(0)
+
+  // Moderation
+  isBanned   Boolean   @default(false)
+  bannedAt   DateTime?
+  banReason  String?
+  bannedById String?
+  adminNotes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  store       Store?
+  sessions    Session[]
+  orders      Order[]
+  reviews     Review[]
+  threads     MessageThread[]
+  messages    Message[]
+  resetTokens PasswordResetToken[]
+
+  @@index([role])
+  @@index([isBanned])
+  @@index([createdAt])
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  userAgent String?
+  ipAddress String?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+// ---------------------------------------------------------------------------
+// Catalog
+// ---------------------------------------------------------------------------
+
+model Category {
+  id                   String   @id @default(cuid())
+  slug                 String   @unique
+  name                 String   @unique
+  icon                 String   @default("📦")
+  image                String   @default("")
+  description          String   @default("")
+  popularSubcategories String[] @default([])
+  sortOrder            Int      @default(0)
+  isActive             Boolean  @default(true)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  products Product[]
+  stores   Store[]
+
+  @@index([sortOrder])
+}
+
+model Store {
+  id           String   @id @default(cuid())
+  slug         String   @unique
+  name         String   @unique
+  tagline      String   @default("")
+  description  String   @default("")
+  isVerified   Boolean  @default(false)
+  rating       Float    @default(0)
+  reviewsCount Int      @default(0)
+  salesCount   Int      @default(0)
+  location     String   @default("")
+  city         String?
+  state        String   @default("Lagos")
+  country      String   @default("Nigeria")
+  avatar       String?
+  coverImage   String?
+  phone        String?
+  email        String?
+  whatsapp     String?
+  joinedDate   String   @default("")
+  badges       String[] @default([])
+  isActive     Boolean  @default(true)
+
+  // Moderation
+  isSuspended     Boolean   @default(false)
+  suspendedAt     DateTime?
+  suspendReason   String?
+  isFeaturedStore Boolean   @default(false)
+  adminNotes      String?
+
+  // Payout / shop settings
+  bankName          String?
+  bankAccountName   String?
+  bankAccountNumber String?
+  bankCode          String?
+  shippingPolicy    String?
+  returnPolicy      String?
+  facebookUrl       String?
+  instagramUrl      String?
+  websiteUrl        String?
+
+  categoryId String?
+  ownerId    String? @unique
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  category     Category?       @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  owner        User?           @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  products     Product[]
+  orders       Order[]
+  reviews      Review[]
+  wallet       Wallet?
+  payouts      PayoutRequest[]
+  threads      MessageThread[]
+  transactions Transaction[]
+
+  @@index([state])
+  @@index([categoryId])
+  @@index([isVerified])
+}
+
+model Product {
+  id       String @id @default(cuid())
+  slug     String @unique
+  uniqueId String @unique
+
+  title       String
+  description String   @default("")
+  features    String[] @default([])
+  images      String[] @default([])
+
+  price         Int
+  originalPrice Int?
+  shippingFee   Int     @default(0)
+  badge         String?
+
+  condition  String @default("Brand New")
+  categoryId String
+  storeId    String
+
+  location String @default("")
+  state    String @default("Lagos")
+
+  rating       Float @default(0)
+  reviewsCount Int   @default(0)
+
+  inStock       Boolean @default(true)
+  stockQuantity Int     @default(1)
+
+  isTrending        Boolean   @default(false)
+  isDeal            Boolean   @default(false)
+  isFeaturedAd      Boolean   @default(false)
+  featuredBadgeText String?
+  boostPlan         String?
+  boostExpiresAt    DateTime?
+
+  views  Int           @default(0)
+  status ProductStatus @default(ACTIVE)
+
+  isHidden   Boolean @default(false)
+  adminNotes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  category      Category       @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  store         Store          @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  reviews       Review[]
+  cartItems     CartItem[]
+  wishlistItems WishlistItem[]
+  orderItems    OrderItem[]
+
+  @@index([storeId])
+  @@index([categoryId])
+  @@index([state])
+  @@index([status])
+  @@index([isTrending])
+  @@index([isDeal])
+  @@index([isFeaturedAd])
+  @@index([price])
+  @@index([createdAt])
+}
+
+model Review {
+  id                 String   @id @default(cuid())
+  productId          String
+  storeId            String?
+  userId             String?
+  author             String
+  location           String   @default("Verified Buyer, Nigeria")
+  rating             Int
+  comment            String
+  isVerifiedPurchase Boolean  @default(true)
+  sellerReply        String?
+  isHidden           Boolean  @default(false)
+  createdAt          DateTime @default(now())
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  store   Store?  @relation(fields: [storeId], references: [id], onDelete: SetNull)
+  user    User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([productId])
+  @@index([storeId])
+  @@index([createdAt])
+}
+
+model BlogPost {
+  id           String   @id @default(cuid())
+  slug         String   @unique
+  title        String
+  excerpt      String   @default("")
+  content      String   @default("")
+  category     String   @default("Marketplace")
+  image        String   @default("")
+  tags         String[] @default([])
+  readTime     String   @default("4 min read")
+  authorName   String   @default("Komback Editorial")
+  authorRole   String   @default("Marketplace Desk")
+  authorAvatar String   @default("")
+  isPublished  Boolean  @default(true)
+  publishedAt  DateTime @default(now())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([publishedAt])
+  @@index([isPublished])
+}
+
+// ---------------------------------------------------------------------------
+// Cart / Wishlist  (ownerKey = userId when signed in, guest cookie id otherwise)
+// ---------------------------------------------------------------------------
+
+model CartItem {
+  id            String   @id @default(cuid())
+  ownerKey      String
+  productId     String
+  quantity      Int      @default(1)
+  selectedColor String?
+  selectedSize  String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([ownerKey, productId])
+  @@index([ownerKey])
+}
+
+model WishlistItem {
+  id        String   @id @default(cuid())
+  ownerKey  String
+  productId String
+  createdAt DateTime @default(now())
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([ownerKey, productId])
+  @@index([ownerKey])
+}
+
+// ---------------------------------------------------------------------------
+// Commerce
+// ---------------------------------------------------------------------------
+
+model Order {
+  id          String      @id @default(cuid())
+  orderNumber String      @unique
+  status      OrderStatus @default(PENDING)
+
+  buyerId String?
+  storeId String
+
+  subtotal    Int
+  shippingFee Int @default(0)
+  total       Int
+
+  paymentStatus    PaymentStatus @default(UNPAID)
+  paymentProvider  String?
+  paymentReference String?
+
+  buyerName       String
+  buyerEmail      String?
+  buyerPhone      String
+  deliveryAddress String
+  buyerCityState  String
+  deliveryState   String
+
+  courier         String?
+  waybillNumber   String?
+  handoverPin     String?
+  pinVerified     Boolean   @default(false)
+  escrowReleaseAt DateTime?
+  courierNote     String?
+
+  placedAt   DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  releasedAt DateTime?
+
+  buyer        User?         @relation(fields: [buyerId], references: [id], onDelete: SetNull)
+  store        Store         @relation(fields: [storeId], references: [id], onDelete: Restrict)
+  items        OrderItem[]
+  shipment     Shipment?
+  transactions Transaction[]
+
+  @@index([buyerId])
+  @@index([storeId])
+  @@index([status])
+  @@index([placedAt])
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  productId String?
+  title     String
+  image     String  @default("")
+  unitPrice Int
+  quantity  Int     @default(1)
+  subtotal  Int
+  condition String  @default("Brand New")
+
+  order   Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+}
+
+model Shipment {
+  id                String         @id @default(cuid())
+  orderId           String         @unique
+  courier           String
+  waybillNumber     String         @unique
+  status            ShipmentStatus @default(PENDING)
+  origin            String         @default("")
+  destination       String         @default("")
+  recipientName     String         @default("")
+  recipientPhone    String         @default("")
+  riderName         String?
+  riderPhone        String?
+  estimatedDelivery String?
+  dispatchedAt      DateTime?
+  deliveredAt       DateTime?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  order  Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  events ShipmentEvent[]
+
+  @@index([status])
+}
+
+model ShipmentEvent {
+  id         String   @id @default(cuid())
+  shipmentId String
+  title      String
+  subtitle   String   @default("")
+  location   String   @default("")
+  status     String   @default("completed")
+  occurredAt DateTime @default(now())
+
+  shipment Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  @@index([shipmentId])
+}
+
+// ---------------------------------------------------------------------------
+// Money
+// ---------------------------------------------------------------------------
+
+model Transaction {
+  id          String            @id @default(cuid())
+  reference   String            @unique
+  type        TransactionType
+  status      TransactionStatus @default(COMPLETED)
+  amount      Int
+  description String            @default("")
+  account     String            @default("")
+  provider    String?
+  providerRef String?
+
+  orderId String?
+  storeId String?
+
+  createdAt DateTime @default(now())
+
+  order Order? @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  store Store? @relation(fields: [storeId], references: [id], onDelete: SetNull)
+
+  @@index([storeId])
+  @@index([orderId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+model Wallet {
+  id               String   @id @default(cuid())
+  storeId          String   @unique
+  availableBalance Int      @default(0)
+  escrowLocked     Int      @default(0)
+  totalSettled     Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+}
+
+model PayoutRequest {
+  id            String       @id @default(cuid())
+  storeId       String
+  amount        Int
+  bankName      String
+  accountName   String
+  accountNumber String
+  status        PayoutStatus @default(PENDING)
+  note          String?
+  requestedAt   DateTime     @default(now())
+  processedAt   DateTime?
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([storeId])
+  @@index([status])
+}
+
+// ---------------------------------------------------------------------------
+// Messaging (buyer <-> seller)
+// ---------------------------------------------------------------------------
+
+model MessageThread {
+  id              String   @id @default(cuid())
+  storeId         String
+  buyerId         String?
+  ownerKey        String?
+  buyerName       String   @default("Guest Buyer")
+  buyerPhone      String?
+  subject         String   @default("Product enquiry")
+  productId       String?
+  unreadForSeller Int      @default(0)
+  unreadForBuyer  Int      @default(0)
+  lastMessageAt   DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  store    Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  buyer    User?     @relation(fields: [buyerId], references: [id], onDelete: SetNull)
+  messages Message[]
+
+  @@index([storeId])
+  @@index([ownerKey])
+  @@index([lastMessageAt])
+}
+
+model Message {
+  id         String     @id @default(cuid())
+  threadId   String
+  senderRole SenderRole
+  senderId   String?
+  senderName String     @default("")
+  text       String
+  createdAt  DateTime   @default(now())
+
+  thread MessageThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  sender User?         @relation(fields: [senderId], references: [id], onDelete: SetNull)
+
+  @@index([threadId])
+  @@index([createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Super Admin: security, auditing and platform control
+// ---------------------------------------------------------------------------
+
+model PasswordResetToken {
+  id          String    @id @default(cuid())
+  userId      String
+  token       String    @unique
+  expiresAt   DateTime
+  usedAt      DateTime?
+  requestedIp String?
+  createdAt   DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+/// Immutable trail of everything that happens in the marketplace.
+/// `actorId` is intentionally a plain column (no foreign key) so that deleting or
+/// banning an account never erases its history.
+model AuditLog {
+  id          String        @id @default(cuid())
+  actorId     String?
+  actorEmail  String?
+  actorName   String?
+  actorRole   String?
+  action      String
+  category    AuditCategory
+  entityType  String?
+  entityId    String?
+  description String        @default("")
+  metadata    Json?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime      @default(now())
+
+  @@index([createdAt])
+  @@index([action])
+  @@index([category])
+  @@index([actorId])
+  @@index([entityType, entityId])
+}
+
+model PlatformSetting {
+  key         String   @id
+  value       Json
+  description String   @default("")
+  updatedById String?
+  updatedAt   DateTime @updatedAt
+
+  @@index([updatedAt])
+}

@@ -1,0 +1,6 @@
+{
+  "name": "Komback Marketplace",
+  "description": "Nigeria's Marketplace for Everything. Buy, Sell, and Connect across Nigerian cities with verified sellers, top stores, and deals.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

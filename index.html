@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en-NG">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!--
+      These are default values. The server replaces every SEO token with
+      route-specific metadata plus JSON-LD structured data before sending the page,
+      so crawlers and AI answer engines receive fully-formed markup without running JS.
+    -->
+    <title>%SEO_TITLE%</title>
+    <meta name="description" content="%SEO_DESCRIPTION%" />
+    <meta name="keywords" content="%SEO_KEYWORDS%" />
+    <link rel="canonical" href="%SEO_CANONICAL%" />
+    <meta name="robots" content="%SEO_ROBOTS%" />
+
+    <!-- Geo / locale signals -->
+    <meta name="geo.region" content="NG" />
+    <meta name="geo.placename" content="Lagos, Nigeria" />
+    <meta name="language" content="en-NG" />
+    <meta name="content-language" content="en-NG" />
+    <meta name="country" content="Nigeria" />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="%SEO_OG_TYPE%" />
+    <meta property="og:site_name" content="Komback" />
+    <meta property="og:title" content="%SEO_TITLE%" />
+    <meta property="og:description" content="%SEO_DESCRIPTION%" />
+    <meta property="og:url" content="%SEO_CANONICAL%" />
+    <meta property="og:image" content="%SEO_OG_IMAGE%" />
+    <meta property="og:locale" content="en_NG" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="%SEO_TITLE%" />
+    <meta name="twitter:description" content="%SEO_DESCRIPTION%" />
+    <meta name="twitter:image" content="%SEO_OG_IMAGE%" />
+
+    <meta name="theme-color" content="#059669" />
+    <link rel="icon" type="image/png" href="/images/logo.png" />
+    <link rel="apple-touch-icon" href="/images/logo.png" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+
+    <script type="application/ld+json" data-seo-jsonld="true">
+      %SEO_JSONLD%
+    </script>
+  </head>
+  <body class="bg-[#F8FAFC] text-[#0F172A] font-['Inter',sans-serif] antialiased selection:bg-emerald-500 selection:text-white">
+    <div id="root"></div>
+    <noscript>
+      <h1>Komback — Nigeria's marketplace for everything</h1>
+      <p>
+        Buy and sell phones, vehicles, electronics, fashion, real estate and groceries from verified
+        Nigerian merchants with escrow-protected payments. Please enable JavaScript to browse the
+        full marketplace.
+      </p>
+    </noscript>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
