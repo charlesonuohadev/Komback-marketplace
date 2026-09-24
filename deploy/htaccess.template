@@ -1,0 +1,53 @@
+# ---------------------------------------------------------------------------
+# Komback — Apache config for the cPanel / Phusion Passenger deployment.
+#
+# THIS IS A TEMPLATE. Copy it to your server, fill in the YOURUSER / version
+# values, and save it as `.htaccess`. Do not commit it back with real paths.
+#
+# WHERE IT GOES — the DOCUMENT ROOT of the domain (what cPanel lists as the
+# domain's "Document Root"), which must be the SAME folder as the Node app's
+# "Application root" (the folder containing app.js, dist/ and node_modules/).
+#
+#   /home/YOURUSER/KombackWeb   <-- app root AND document root
+#
+# If they are different folders, Apache never reads this file for the domain,
+# Passenger never hands a request to Node, and the domain is served as plain
+# static files: the SPA loads, then every /api/* call comes back as HTML and the
+# UI reports `Cannot read properties of null (reading 'categories')`.
+#
+# TWO RULES
+#   1. Keep the Passenger block below (cPanel's "Setup Node.js App" normally
+#      writes it for you — if it is already there, leave it untouched).
+#   2. There must be NO catch-all rewrite to /index.html and NO
+#      `FallbackResource`. server/index.ts already serves index.html for every
+#      non-API route and substitutes the SEO tokens (%SEO_TITLE% etc.) first.
+#      A catch-all hijacks /api/*, /robots.txt, /sitemap.xml and /llms.txt, and
+#      ships the raw, unsubstituted template to browsers and crawlers.
+# ---------------------------------------------------------------------------
+
+# DO NOT REMOVE. CLOUDLINUX PASSENGER CONFIGURATION BEGIN
+PassengerAppRoot "/home/YOURUSER/KombackWeb"
+PassengerBaseURI "/"
+PassengerNodejs "/home/YOURUSER/nodevenv/KombackWeb/20/bin/node"
+PassengerAppType node
+PassengerStartupFile app.js
+# DO NOT REMOVE. CLOUDLINUX PASSENGER CONFIGURATION END
+
+# Passenger already routes everything to the Node app, so no SPA fallback is
+# needed. If one is ever added for any reason, it must exclude the API and the
+# machine-readable endpoints:
+
+# <IfModule mod_rewrite.c>
+#   RewriteEngine On
+#   RewriteCond %{REQUEST_URI} !^/(api|assets|images)(/|$) [NC]
+#   RewriteCond %{REQUEST_URI} !^/(robots\.txt|sitemap\.xml|llms\.txt)$
+#   RewriteCond %{REQUEST_FILENAME} !-f
+#   RewriteCond %{REQUEST_FILENAME} !-d
+#   RewriteRule . /index.html [L]
+# </IfModule>
+
+# NEVER do this — it is the cause of the HTML-returned-for-/api bug:
+#
+#   RewriteRule . /index.html [L]
+#   FallbackResource /index.html
+#   ErrorDocument 404 /index.html
