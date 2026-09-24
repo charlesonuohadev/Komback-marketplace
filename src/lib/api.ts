@@ -149,18 +149,67 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const response = await fetch(`/api${path}`, {
-    ...init,
-    credentials: 'same-origin',
-    headers: {
-      ...(init.body ? { 'Content-Type': 'application/json' } : {}),
-      ...(init.headers ?? {}),
-    },
-  });
+/** Flattens an HTML/text error page into a short one-line clue. */
+function summariseBody(body: string): string {
+  return body
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 160);
+}
 
-  const isJson = (response.headers.get('content-type') ?? '').includes('application/json');
-  const payload = isJson ? await response.json() : null;
+async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  let response: Response;
+  try {
+    response = await fetch(`/api${path}`, {
+      ...init,
+      credentials: 'same-origin',
+      headers: {
+        ...(init.body ? { 'Content-Type': 'application/json' } : {}),
+        ...(init.headers ?? {}),
+      },
+    });
+  } catch (error) {
+    throw new ApiError(
+      `Could not reach /api${path} (${
+        error instanceof Error ? error.message : 'network error'
+      }).`,
+      0
+    );
+  }
+
+  const contentType = response.headers.get('content-type') ?? '';
+
+  // Anything that is not JSON was not produced by the API router — something in
+  // front of the Node app answered instead (a rewrite to the SPA shell, a stale
+  // static build, or a Passenger/Apache error page). Previously this silently
+  // became `null` and callers crashed with a "Cannot read properties of null"
+  // error a long way from the real cause.
+  if (!contentType.includes('application/json')) {
+    const detail = summariseBody(await response.text().catch(() => ''));
+    if (response.ok) {
+      throw new ApiError(
+        `The web server answered /api${path} with ${
+          contentType || 'no content type'
+        } instead of JSON, so the request never reached the API.` +
+          (detail ? ` Response began: ${detail}` : ''),
+        response.status
+      );
+    }
+    throw new ApiError(
+      `Request to /api${path} failed with status ${response.status}` +
+        (detail ? `: ${detail}` : ''),
+      response.status
+    );
+  }
+
+  let payload: unknown;
+  try {
+    payload = await response.json();
+  } catch {
+    throw new ApiError(`The API returned malformed JSON for /api${path}.`, response.status);
+  }
 
   if (!response.ok) {
     const message =
@@ -168,6 +217,11 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
         ? String((payload as { error: unknown }).error)
         : null) ?? `Request failed with status ${response.status}`;
     throw new ApiError(message, response.status);
+  }
+
+  // Every endpoint returns a JSON object, so a null body can only crash the caller.
+  if (payload === null || payload === undefined) {
+    throw new ApiError(`The API returned an empty response for /api${path}.`, response.status);
   }
 
   return payload as T;

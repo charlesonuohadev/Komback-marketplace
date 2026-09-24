@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { api, type AuthUser, type Reference } from '../lib/api';
+import { api, ApiError, type AuthUser, type Reference } from '../lib/api';
 import type { BlogPost, CartItem, Category, Product, Review, Store } from '../types';
 
 interface AppContextValue {
@@ -50,6 +50,20 @@ const EMPTY_REFERENCE: Reference = {
   badges: [],
   shippingFees: {},
 };
+
+/**
+ * The initial load fans out to eight endpoints, so a failure can mean very
+ * different things. Say what actually broke instead of blaming the database.
+ */
+function describeLoadFailure(error: unknown): string {
+  if (!(error instanceof Error)) return 'Could not load the marketplace. Please try again.';
+  if (error instanceof ApiError) {
+    if (error.status === 0) return `Could not reach the marketplace API. ${error.message}`;
+    if (error.status === 503) return `The marketplace database is unavailable. ${error.message}`;
+    return `The marketplace API could not serve this page. ${error.message}`;
+  }
+  return `The marketplace failed to load. ${error.message}`;
+}
 
 const AppContext = createContext<AppContextValue | null>(null);
 
@@ -147,13 +161,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setWishlistIds(wishlistRes.ids);
         setError(null);
       } catch (err) {
-        if (!cancelled) {
-          setError(
-            err instanceof Error
-              ? `Could not reach the marketplace database: ${err.message}`
-              : 'Could not reach the marketplace database'
-          );
-        }
+        if (!cancelled) setError(describeLoadFailure(err));
       } finally {
         if (!cancelled) setLoading(false);
       }
